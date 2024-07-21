@@ -1,0 +1,579 @@
+---
+title: "Final_Project"
+author: "Neaha_Bijo_400433756"
+date: "2023-04-10"
+#geometry: "left=2cm,right=2cm,top=0.5cm,bottom=1cm"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message=FALSE, warnings=FALSE)
+library(readr)
+library(tidyverse)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(gridExtra)
+library(ggthemes)
+library(RColorBrewer)
+library(grid)
+library(ggrepel)
+library(viridis)
+library(circlize)
+library(lubridate)
+library(reshape2)
+```
+
+Introduction
+
+The data used in the project was obtained from Kaggle. Data will be taken from 1950-2022 (excluding the shortened 2017 season) for race results. This project focuses on the safety concerns in Formula 1. This covers the deployment of safety cars, red-flags, pole positions being safe to win the race. As safety cars deployments and red flags are always blamed on drivers and teams I want to try and find the other factors affecting the safety of the race.
+
+I will ask the following questions:
+
+1. Do drivers on pole position in qualifying always win the race in the Grand Prix? If not then why do they fight for it?
+    - This is used to find out why drivers and teams always aim for first finish in qualifying even though the weekend winner is determined by the driver and team who wins in the Grand Prix.
+2. How does the safety car deployments in the middle of the race change the situation of the race?
+    - Safety cars a re deployed for various reasons but some teams and drivers are not happy when this occurs.
+3. Which circuits have the most events going on? Is the track safe for a race to be on the calendar in the future?
+    - Finding out which circuits have the most events (red flags, accidents etc) can help determine if the circuit is safe to race as cars are 2 times are big as they were in the 90s. Theoretically once a circuit is determined dangerous by FIA regulations that track should not be on the race calender and be either discontinued or renovated.
+
+Data Wrangling Plan
+
+GP Result
+
+Iteration 1
+
+Phase 1
+
+1. Read the csv file into R
+2. Make column names lowercase
+3. Determine if the data is Tidy and if not fix it
+4. Identify uids
+5. Drop unnecessary columns
+
+Phase 2
+
+```{r}
+##1.
+results_tib <- read.csv("./Data/results.csv", ) %>% glimpse()
+```
+
+```{r}
+##2.
+results_tib1 <- results_tib %>% rename_with(tolower) %>% glimpse()
+```
+
+```{r}
+##3.
+results_tib1 %>% count (resultid, raceid, driverid) %>% filter(n > 1)
+```
+- The uid's are resultid,raceid and driverid
+
+```{r}
+##4.
+results_tib2 <- results_tib1 %>% select(resultid , raceid, driverid, grid, position)
+results_tib2 %>% glimpse()
+```
+
+Iteration 2
+
+Phase 1
+
+1. Check for NA values in the columns
+    - Drop NA
+2. Mutate a new column for true or false values for same starting and final positions for qualifying and race leaders.
+3.Check if tibble is Tidy
+
+Phase 2
+
+```{r}
+##1.
+results_tib2 %>% summary()
+```
+
+```{r}
+results_tib3 <- results_tib2 %>% drop_na()
+results_tib3 %>% summary()
+```
+
+```{r}
+##2.
+results_tib4 <- results_tib3 %>% mutate(pos = if_else((grid == 1 & position == 1 ),1 ,0)) 
+results_tib4 %>% glimpse()
+```
+
+```{r}
+##3.
+results_tib4 %>% head(10)
+```
+
+Race Information
+
+Iteration 1
+
+Phase 1
+
+1. Read the csv file into R
+2. Make column names lowercase
+3. Identify uids
+4. Drop unnecessary columns
+
+Phase 2
+
+```{r}
+##1.
+races_tib <- read.csv("./Data/races.csv") %>% glimpse()
+```
+
+```{r}
+##2.
+races_tib1 <- races_tib %>% rename_with(tolower) %>% glimpse()
+```
+
+```{r}
+##3.
+races_tib1 %>% count (raceid, year) %>% filter(n > 1)
+```
+- The uids are raceid and year
+
+```{r}
+##4.
+races_tib2 <- races_tib1 %>% select(-round, -time, -url)
+races_tib2 %>% glimpse()
+```
+
+Iteration 2
+
+Phase 1
+
+1. Check for NA values in the columns
+    - Drop NA
+
+2. Convert date column from character to Date & year column from int to Date
+
+
+```{r}
+##1.
+races_tib2 %>% summary()
+```
+
+```{r}
+##2.
+races_tib3 <- races_tib2 
+races_tib3$date <- as.Date(races_tib3$date, "%Y-%m-%d")
+races_tib3$year <-  ymd(races_tib3$year,truncated = 2L)
+races_tib3 %>% glimpse()
+```
+
+Iteration 3
+
+Phase 1
+
+1. Left join results and races tibble by uid (raceid)
+
+Phase 2
+
+```{r}
+join1 <- left_join(results_tib4, races_tib3, by="raceid")
+join1 %>% glimpse()
+```
+
+Circuits Infornation
+
+Iteration 1
+
+Phase 1
+
+1. Read the csv file into R
+2. Make column names lowercase
+3. Identify uids
+4. Drop unnecessary columns
+
+Phase 2
+
+```{r}
+##1.
+circuits_tib <- read.csv("./Data/circuits.csv") %>% glimpse()
+```
+
+```{r}
+##2.
+circuits_tib1 <- circuits_tib %>% rename_with(tolower) %>% glimpse()
+```
+
+```{r}
+##3.
+circuits_tib1 %>% count (circuitid, name) %>% filter(n > 1)
+```
+- The uids are circuitid and name
+
+```{r}
+##4.
+circuits_tib2 <- circuits_tib1 %>% select(circuitid,name,circuitref,location,country)
+circuits_tib2 %>% glimpse()
+```
+Iteration 2
+
+Phase 1
+
+1. Rename circuit name column
+
+2. Check if tibble is Tidy
+
+Phase 2
+
+```{r}
+##1.
+circuits_tib3 <- circuits_tib2 %>% rename(cname = name)
+##2.
+circuits_tib3 %>% glimpse() 
+```
+Safety Cars Deployed Data
+
+Iteration 1
+
+Phase 1
+
+1. Read the csv file into R
+2. Make column names lowercase
+3. Determine if the data is Tidy and if not fix it
+4. Identify uids
+5. Drop unnecessary columns
+
+Phase 2
+
+```{r}
+##1.
+sf_tib <- read.csv("./Data/safety_cars.csv") %>% glimpse()
+```
+
+```{r}
+##2.
+sf_tib1 <- sf_tib %>% rename_with(tolower) %>% glimpse()
+```
+
+```{r}
+##3.
+sf_tib2 <- sf_tib1 %>% separate(race, c("year", "name"), sep ="\\s", extra = "merge")
+sf_tib2 %>% glimpse()
+```
+
+```{r}
+##4.
+sf_tib2 %>% count (name, cause) %>% filter(n > 1) %>% head(5)
+```
+- There are no uid's
+
+```{r}
+##5.
+sf_tib3 <- sf_tib2 %>% select(-retreated, -fulllaps)
+sf_tib3 %>% glimpse()
+```
+
+Iteration 2
+
+Phase 1
+
+1. Check for NA values in the columns
+    - Drop NA
+
+2. Convert year to Date class
+
+3. Create a new tibble with number of times a safety car has been deployed in the race
+
+Phase 2
+
+```{r}
+##1.
+sf_tib3 %>% summary()
+```
+
+```{r}
+##2.
+sf_tib4 <- sf_tib3 %>% mutate(year = ymd(year,truncated = 2L))
+sf_tib4 %>% glimpse()
+```
+
+```{r}
+##3.
+sf_tib5 <- sf_tib3 %>% count(name)
+sf_tib5 %<>% rename(count = n)
+sf_tib5 %>% glimpse() 
+```
+
+Iteration 3
+
+Phase 1
+
+1. Left join races tibble and circuits tibble by uid(circuitid)
+2. Left join safety cars tibble to the resulting tibble by uid (name)
+2. Left join modified safety cars tibble to the resulting tibble by uid (name, year)
+
+Phase 2
+
+```{r}
+##1.
+join3 <- left_join(races_tib3, circuits_tib3, by="circuitid")
+join3 %>% glimpse()
+```
+
+```{r}
+##2.
+join4 <- left_join(join3, sf_tib5, by=c("name"))
+join4 %>% glimpse()
+```
+
+
+```{r}
+##3.
+join5 <- left_join(join3, sf_tib4, by=c("name","year"))
+join5 %>% glimpse()
+```
+
+```{r}
+##4.
+join6 <- left_join(races_tib3, sf_tib4, by=c("name","year"))
+join6 %<>% select(-circuitid, -cause, -date) %>% drop_na()
+join6 %>% glimpse()
+```
+
+Lap Times of Each Race
+
+Iteration 1
+
+Phase 1
+
+1. Read the csv file into R
+2. Make column names lowercase
+3. Identify uids
+
+Phase 2
+
+```{r}
+##1.
+lap_tib <- read.csv("./Data/lapTimes.csv") %>% glimpse()
+```
+
+```{r}
+##2.
+lap_tib1 <- lap_tib %>% rename_with(tolower) %>% glimpse()
+```
+
+```{r}
+##3.
+lap_tib1 %>% count (raceid, driverid, lap) %>% filter(n > 1)
+```
+- The uids are raceid, driverid and lap
+
+Iteration 2
+
+Phase 1
+
+1. Check for NA values in the columns
+    - Drop NA
+
+2.Check if tibble is Tidy
+
+Phase 2
+```{r}
+##1.
+lap_tib1 %>% summary()
+##2.
+lap_tib1 %>% glimpse()
+```
+Iteration 3
+
+Phase 1
+
+1. Left join lap time tibble with tibble join6
+
+```{r}
+##1.
+join7 <- full_join(join6, lap_tib1, by="raceid")
+join7 %>% glimpse()
+```
+
+Iteration 1
+
+Phase 1
+
+1. Read the csv file into R
+2. Make column names lowercase
+3. Determine if the data is Tidy and if not fix it
+4. Identify uids
+5. Drop unnecessary columns
+
+Phase 2
+```{r}
+##1.
+red_tib <- read.csv("./Data/red_flags.csv") %>% glimpse()
+```
+
+```{r}
+##2.
+red_tib1 <- red_tib %>% rename_with(tolower) %>% glimpse()
+```
+
+```{r}
+##3.
+red_tib2 <- red_tib1 %>% separate(race, c("year", "name"), sep ="\\s", extra = "merge")
+sf_tib2 %>% glimpse()
+```
+
+
+```{r}
+##4.
+red_tib2 %>% count (year,name,lap) %>% filter(n > 1)
+```
+
+Pit Stops Data - pit stops done during a safety car and a red flag
+
+Iteration 1
+
+Phase 1
+
+1. Read the csv file into R
+2. Make column names lowercase
+3. Identify uids
+
+Phase 2
+
+```{r}
+##1.
+pit_tib <- read.csv("./Data/pitStops.csv") %>% glimpse()
+```
+
+```{r}
+##2.
+pit_tib1 <- pit_tib %>% rename_with(tolower) %>% glimpse()
+```
+
+```{r}
+##3.
+pit_tib1 %>% count (raceid, driverid, lap) %>% filter(n > 1)
+```
+- The uids are raceid, driverid and lap
+
+Iteration 2
+
+Phase 1
+
+1. Check for NA values in the columns
+    - Drop NA
+
+2.Check if tibble is Tidy
+
+Phase 2
+
+```{r}
+pit_tib1 %>% summary()
+```
+
+3. Results/Discussion – It should be a maximum of 3 pages.
+
+Question 1:
+
+```{r, out.width="50%"}
+p1 <- join1 %>% group_by(year) %>% summarize(posperyear = sum(pos)) %>% ungroup() %>% ggplot() +
+  geom_line(mapping = aes (x = year, y = posperyear, color = posperyear )) + 
+  theme_gray() +
+  labs(title = "Times Qualifying on Pole lead to GP wins",
+       y = "Sum of pole posistions = Race Win per year",
+       x = "Year",
+       color = "Positions per Year") +
+  scale_x_date(breaks="4 year", date_labels = "%Y") +
+  scale_y_continuous(breaks = c(2.5, 5.0, 7.5, 10.0,12.5)) +
+  theme(axis.text.x = element_text(size=8,angle=45),
+        axis.text.y = element_text(size=8),
+        plot.title = element_text(hjust = 0.5)) 
+  
+p1
+```
+
+There is a general upward trend of drivers starting in pole position in qualifying sessions and finishing out on top in the Grand Prix on Sunday. The drops in the graph before the 20th century can be attributed to the existing technology of those days. The introduction of hybrid engines in 2014 has shown its effect as there is a significant upward trend in pole positions resulting in wins in the grand prix. Around 42.41% of race wins have been won by drivers on pole. The most amount of wins from pole positions is seen after 2014, after which it drops.
+
+
+Question 2:
+
+```{r, echo =FALSE, eval=FALSE}
+sfdeploy_tib <- join7 %>% filter(deployed==lap, name=="Singapore Grand Prix")
+sfdeploy_tib %>% glimpse()
+```
+
+```{r, echo =FALSE, eval =FALSE}
+sfndeploy_tib <- join7 %>% filter(deployed!=lap, name=="Singapore Grand Prix")
+sfndeploy_tib %>% glimpse()
+```
+
+```{r}
+p2 <- join7 %>% filter(deployed ==lap, name =="Singapore Grand Prix") %>% group_by(raceid,deployed) %>%
+  ggplot(aes(x = as.factor(raceid),y = milliseconds, color = milliseconds)) + 
+  geom_boxplot(alpha=.25) + theme_gray() +
+  labs(title = "Median Lap During Safety Car",
+       subtitle ='in milliseconds, grouped by Singapore Grand Prix',
+       y = "Median lap in milliseconds",
+       x = "Raceid",
+       color = "Time") +
+  geom_jitter(shape=16,position=position_jitter(0.2),size=0.5) + 
+  geom_smooth(method='loess',aes(group=1),color='red',lty=2,size=.5) +
+  scale_color_gradientn(name="",colours=rev(viridis::viridis(20)))
+```
+
+```{r}
+p3 <- join7 %>% filter(deployed!=lap, name=="Singapore Grand Prix") %>% group_by(raceid,deployed) %>%
+  ggplot(aes(x = as.factor(raceid),y = milliseconds, color = milliseconds)) + 
+  geom_boxplot(alpha=.25) + theme_gray() + 
+  labs(title = "Median Lap Without Safety Car",
+       subtitle ='in milliseconds, grouped by Singapore Grand Prix',
+       y = "Median lap in milliseconds",
+       x = "Raceid",
+       color = "Time") +
+  geom_jitter(shape=16,position=position_jitter(0.2),size=0.5) + 
+  geom_smooth(method='loess',aes(group=1),color='red',lty=2,size=.5) +
+  scale_color_gradientn(name="",colours=rev(viridis::viridis(20)))
+```
+
+```{r, echo = FALSE, figures-side, fig.show="hold", out.width="50%"}
+p2 
+p3 
+```
+I chose to analyse the Singapore races as this is the circuit with the most number of safety car deployments. Deployment of safety cars during the race causes the cars to slow down and take more time to complete a lap as they have to maintain a speed. This causes the cars to bunch up behind the safety car, although they have to maintain a minimum car length in between. Without the safety car, the cars would lap the Singapore circuit in under a minute.
+
+
+```{r, echo=FALSE, eval=FALSE}
+deploy_tib <- join7 %>% filter(deployed==lap)
+deploy_tib %>% glimpse()
+```
+
+Question 3: 
+```{r}
+p4 <- join4 %>% group_by(name,year) %>% 
+  ggplot(aes(x=year,y= count, color=count)) + 
+  geom_point(size=0.5) + theme_minimal() +
+  labs(title = "Safety Cars Deployed per Circuit",
+       subtitle = "grouped by Grand Prix",
+       y = "Count",
+       x = "Year",
+       color = "Count") +
+  scale_color_gradientn(name="",colours=rev(viridis::viridis(20))) +
+  theme(axis.text.x = element_text(size=4,angle=45),
+        axis.text.y = element_text(size=4),
+        strip.text.x = element_text(size = 4)) + facet_wrap(~name,ncol=9)
+p4
+```
+Clearly, there are certain circuits with Safety Cars deployed frequently. The Belgian Grand Prix, British Grand Prix, German Grand Prix, Monaco Grand Prix, and Italian Grand Prix are the circuits with the most number of safety cars deployed. From my observations above, the Singapore Grand Prix has deployed a safety car in its circuit every year a race is held there.
+
+Conclusion 
+
+1. Statistics show that the pole sitter takes more than 40% of race wins. The ability to start on pole position can be extremely advantageous for F1 drivers as it gives the driver a shorter run to the first corner. The pole position driver can simply focus on starting the race and would not be too concerned about the other drivers. As there is less traffic in-front of the leading driver they are more safe than the mid-fielders who are trying the attain a good position on track, apex and the score board. They are less in danger of being in an accident and deploying safety cars. As F1 progresses throughout the years with better technology and machinery the drivers on pole have more chance of wining the race safetly.
+
+2. When a safety car is deployed the position of the cars on track does not change, but the time gap eliminates with the car behind. As overtaking is prohibited when a safety car is on track, overtaking is much easier when the race resumes. This also gives time for drivers to pit for new fresh tyres and give a tire advantage when the race resumes. Since the cars are forced to maintain a specific speed it is easier for th car at the back to catch up. Once the safety car is removed, the race will be close. Hence, the safety car is advantageous to the cars at the back but disadvantageous to those leading the race.
+
+3. In 2023, the Italian Grand Prix, Monaco Grand Prix, British Grand Prix, Belgian Grand Prix, and Singapore Grand Prix are still upcoming. Surprisingly the circuits with the most number of safety cars deployed and red flags have been on the race calender almost every year.Some of the circuits are included in the calendar every year because these circuits with their high-speed corners and deep-narrow turns are challenging for teams to race in every year, which provides the thrill of the sport.
+
+The analysis could be improved by analyzing the events every lap that lead to a safety car being deployed and examining other factors that would lead to a safety car appearing in a race.
+
+References
+
+1. [Jason Hope (2022). How Often Does the Pole-Sitter Win In F1? F1Chronicle.com](https://f1chronicle.com/how-often-does-the-pole-sitter-win-in-f1/)
+2. [Safety Car Deployed. Motorsports-regulations.com](https://motorsports-regulations.com/en/safetycar-deployment#:~:text=If%20the%20safety%20car%20is,the%20race%20will%20be%20close.)
